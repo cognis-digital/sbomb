@@ -2,3 +2,4 @@
 2024-07-02T18:08:28  fix(parser): extract the scorer
 2024-07-18T13:25:35  refactor(ci): dedupe overlapping findings
 2024-08-04T08:42:42  style(scoring): add pagination to large reports
+2024-08-21T15:59:49  feat(parser): handle empty and malformed input
