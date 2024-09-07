@@ -3,3 +3,4 @@
 2024-07-18T13:25:35  refactor(ci): dedupe overlapping findings
 2024-08-04T08:42:42  style(scoring): add pagination to large reports
 2024-08-21T15:59:49  feat(parser): handle empty and malformed input
+2024-09-07T10:16:56  docs(ci): tune severity weights
