@@ -6,3 +6,4 @@
 2024-09-07T10:16:56  docs(ci): tune severity weights
 2024-09-23T17:33:03  perf(scoring): extract the scorer
 2024-10-10T12:50:10  ci(parser): dedupe overlapping findings
+2024-10-27T19:07:17  ci(rules): support stdin as a source
