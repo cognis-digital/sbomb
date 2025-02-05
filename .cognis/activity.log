@@ -11,3 +11,4 @@
 2024-12-17T09:41:31  refactor(format): make timestamps timezone-aware
 2025-01-03T16:58:38  test(rules): load rules lazily for faster startup
 2025-01-19T11:15:45  build(tests): trim whitespace in parsed fields
+2025-02-05T18:32:52  chore(format): support stdin as a source
