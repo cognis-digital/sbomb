@@ -12,3 +12,4 @@
 2025-01-03T16:58:38  test(rules): load rules lazily for faster startup
 2025-01-19T11:15:45  build(tests): trim whitespace in parsed fields
 2025-02-05T18:32:52  chore(format): support stdin as a source
+2025-02-22T13:49:59  perf(rules): clarify the README quickstart
