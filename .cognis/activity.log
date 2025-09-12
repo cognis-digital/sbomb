@@ -23,3 +23,4 @@
 2025-07-23T09:05:55  fix: works on my machine (TM)
 2025-08-09T16:22:02  refactor(output): respect .gitignore when walking
 2025-08-26T11:39:09  style(scan): memoize repeated lookups
+2025-09-12T18:56:16  feat(core): stream large files without buffering
