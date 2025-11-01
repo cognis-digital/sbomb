@@ -26,3 +26,4 @@
 2025-09-12T18:56:16  feat(core): stream large files without buffering
 2025-09-28T13:13:23  docs(output): add a regression fixture
 2025-10-14T08:30:30  test(scan): simplify the walker
+2025-11-01T15:47:37  ci(core): respect .gitignore when walking
