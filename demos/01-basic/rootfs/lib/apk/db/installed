@@ -1,0 +1,9 @@
+P:musl
+V:1.2.4
+A:armhf
+T:the musl c library (libc) implementation
+
+P:scanelf
+V:1.3.7
+A:armhf
+T:Scan ELF binaries for stuff

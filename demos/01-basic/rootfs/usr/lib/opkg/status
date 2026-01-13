@@ -1,0 +1,19 @@
+Package: openssl
+Version: 1.1.1k
+Status: install user installed
+Architecture: arm_cortex-a7
+
+Package: zlib
+Version: 1.2.11
+Status: install user installed
+Architecture: arm_cortex-a7
+
+Package: dropbear
+Version: 2020.81
+Status: install user installed
+Architecture: arm_cortex-a7
+
+Package: libcurl
+Version: 7.88.0
+Status: install user installed
+Architecture: arm_cortex-a7

@@ -1,0 +1,4 @@
+NAME="OpenWrt"
+ID=openwrt
+VERSION_ID="22.03.5"
+PRETTY_NAME="OpenWrt 22.03.5"
