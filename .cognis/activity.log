@@ -30,3 +30,4 @@
 2025-11-17T10:04:44  fix(output): memoize repeated lookups
 2025-12-22T17:21:51  refactor(scan): stream large files without buffering
 2026-01-08T12:38:58  refactor(mcp): improve the demo scenario
+2026-01-24T19:55:05  style(fixtures): add a --quiet mode
