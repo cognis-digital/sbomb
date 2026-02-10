@@ -31,3 +31,4 @@
 2025-12-22T17:21:51  refactor(scan): stream large files without buffering
 2026-01-08T12:38:58  refactor(mcp): improve the demo scenario
 2026-01-24T19:55:05  style(fixtures): add a --quiet mode
+2026-02-10T14:12:12  build(report): add type hints to the public API
