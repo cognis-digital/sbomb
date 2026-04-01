@@ -34,3 +34,4 @@
 2026-02-10T14:12:12  build(report): add type hints to the public API
 2026-02-27T09:29:19  chore(mcp): add --fail-on threshold handling
 2026-03-16T16:46:26  perf(fixtures): wire the MCP tool schema
+2026-04-01T11:03:33  ci(report): improve the demo scenario
