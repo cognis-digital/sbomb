@@ -35,3 +35,4 @@
 2026-02-27T09:29:19  chore(mcp): add --fail-on threshold handling
 2026-03-16T16:46:26  perf(fixtures): wire the MCP tool schema
 2026-04-01T11:03:33  ci(report): improve the demo scenario
+2026-04-17T18:20:40  fix(mcp): add a --quiet mode
