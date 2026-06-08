@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: sbomb, labels: { app: sbomb } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: sbomb } }
+  template:
+    metadata: { labels: { app: sbomb } }
+    spec:
+      containers:
+        - name: sbomb
+          image: ghcr.io/cognis-digital/sbomb:latest
+          ports: [{ containerPort: 8000 }]
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: sbomb }
+spec:
+  selector: { app: sbomb }
+  ports: [{ port: 80, targetPort: 8000 }]
