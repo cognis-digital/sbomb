@@ -1,0 +1,10 @@
+{
+  "name": "@cognis/sbomb",
+  "version": "0.2.0",
+  "description": "JavaScript port of sbomb (Cognis Neural Suite)",
+  "bin": {
+    "sbomb": "index.js"
+  },
+  "license": "LicenseRef-COCL-1.0",
+  "type": "module"
+}
