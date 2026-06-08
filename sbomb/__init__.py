@@ -1,2 +1,11 @@
-"""SBOMB — Generate a CycloneDX SBOM directly from an unpacked firmware root filesystem and flag components with known CVEs and EOL kernels."""
-__version__ = "0.1.0"
+"""sbomb — part of the Cognis Neural Suite."""
+try:  # re-export the tool's public API + identity from core
+    from sbomb.core import *  # noqa: F401,F403
+except Exception:  # pragma: no cover
+    pass
+try:
+    from sbomb.core import TOOL_NAME, TOOL_VERSION
+except Exception:  # pragma: no cover
+    TOOL_NAME = "sbomb"
+    TOOL_VERSION = "0.1.0"
+__version__ = TOOL_VERSION
