@@ -16,7 +16,7 @@
 </div>
 
 ```bash
-pip install cognis-sbomb
+pip install "git+https://github.com/cognis-digital/sbomb.git"
 sbomb scan .            # → prioritized findings in seconds
 ```
 
@@ -53,7 +53,7 @@ Regulatory tailwind (EU CRA / FDA premarket SBOM mandates) — single binary tha
 ## Quick start
 
 ```bash
-pip install cognis-sbomb
+pip install "git+https://github.com/cognis-digital/sbomb.git"
 sbomb --version
 sbomb scan .                       # scan current project
 sbomb scan . --format json         # machine-readable
