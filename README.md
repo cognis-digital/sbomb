@@ -350,6 +350,12 @@ PRs, new rules, and demo scenarios are welcome under the collaboration-pull mode
 
 
 
+## Interoperability
+
+`{}` composes with the 300+ tool Cognis suite — JSON in/out and a shared
+OpenAI-compatible `/v1` backbone. See **[INTEROP.md](INTEROP.md)** for the
+suite map, composition patterns, and reference stacks.
+
 ## License
 
 
