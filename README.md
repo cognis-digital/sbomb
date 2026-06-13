@@ -16,9 +16,15 @@
 </div>
 
 ```bash
-pip install cognis-sbomb
+pip install "git+https://github.com/cognis-digital/sbomb.git"
 sbomb scan .            # → prioritized findings in seconds
 ```
+
+<!-- cognis:layman:start -->
+## What is this?
+
+sbomb inspects the unpacked file system from a router, smart device, or any embedded Linux gadget and produces a complete list of every software package inside it — the kind of list regulators increasingly require called an SBOM (Software Bill of Materials). It automatically cross-checks each package against a database of known security flaws, highlights the dangerous ones, and saves the results as a standard CycloneDX JSON file your security team or compliance tool can immediately import. It is aimed at firmware engineers, product-security teams, and auditors who need to know exactly what is running inside a device before it ships or after a vulnerability alert comes in.
+<!-- cognis:layman:end -->
 
 ## Contents
 
@@ -50,10 +56,56 @@ Regulatory tailwind (EU CRA / FDA premarket SBOM mandates) — single binary tha
 <div align="right"><a href="#top">↑ back to top</a></div>
 
 <a name="quick-start"></a>
+<!-- cognis:domains:start -->
+## Domains
+
+**Primary domain:** Cloud & DevTools  ·  **JTF MERIDIAN division:** ATHENA-PRIME · COGNI-2
+
+**Topics:** `cognis` `devtools` `cloud` `developer-tools` `sbom`
+
+Part of the **Cognis Neural Suite** — 300+ source-available tools organized across 12 domains under the JTF MERIDIAN command structure. See the [suite on GitHub](https://github.com/cognis-digital) and [jtf-meridian](https://github.com/cognis-digital/jtf-meridian) for how the pieces fit together.
+<!-- cognis:domains:end -->
+
+<!-- cognis:install:start -->
+## Install
+
+`sbomb` is source-available (not published to PyPI) — every method below installs
+straight from GitHub. Pick whichever you prefer; the one-line scripts auto-detect
+the best tool available on your machine.
+
+**One-liner (Linux / macOS):**
+```sh
+curl -fsSL https://raw.githubusercontent.com/cognis-digital/sbomb/HEAD/install.sh | sh
+```
+
+**One-liner (Windows PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/cognis-digital/sbomb/HEAD/install.ps1 | iex
+```
+
+**Or install manually — any one of:**
+```sh
+pipx install "git+https://github.com/cognis-digital/sbomb.git"     # isolated (recommended)
+uv tool install "git+https://github.com/cognis-digital/sbomb.git"  # uv
+pip install "git+https://github.com/cognis-digital/sbomb.git"      # pip
+```
+
+**From source:**
+```sh
+git clone https://github.com/cognis-digital/sbomb.git
+cd sbomb && pip install .
+```
+
+Then run:
+```sh
+sbomb --help
+```
+<!-- cognis:install:end -->
+
 ## Quick start
 
 ```bash
-pip install cognis-sbomb
+pip install "git+https://github.com/cognis-digital/sbomb.git"
 sbomb --version
 sbomb scan .                       # scan current project
 sbomb scan . --format json         # machine-readable
