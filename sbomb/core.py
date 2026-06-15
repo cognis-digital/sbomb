@@ -372,7 +372,7 @@ def scan_rootfs(rootfs: str) -> List[Component]:
     for det in DETECTORS:
         try:
             found.extend(det(rootfs))
-        except OSError:
+        except (OSError, ValueError, KeyError, UnicodeDecodeError):
             continue
     # dedupe on (name lower, version, source)
     seen = set()
@@ -429,9 +429,22 @@ def load_vuln_db(path: Optional[str] = None) -> List[dict]:
     name, range, id, severity (optional), description (optional)."""
     if not path:
         return list(DEFAULT_VULN_DB)
-    data = json.loads(_read(path))
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"vuln DB file not found: {path}")
+    try:
+        data = json.loads(_read(path))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"vuln DB is not valid JSON: {exc}") from exc
     if not isinstance(data, list):
         raise ValueError("vuln DB must be a JSON list of entries")
+    # Validate required fields in each entry
+    for i, entry in enumerate(data):
+        if not isinstance(entry, dict):
+            raise ValueError(f"vuln DB entry {i} is not an object")
+        if "name" not in entry:
+            raise ValueError(f"vuln DB entry {i} is missing required field 'name'")
+        if "id" not in entry:
+            raise ValueError(f"vuln DB entry {i} is missing required field 'id'")
     return data
 
 
@@ -441,9 +454,14 @@ def match_vulnerabilities(components: List[Component],
     Returns the total number of vulnerability findings."""
     if db is None:
         db = DEFAULT_VULN_DB
+    if not components:
+        return 0
     # index db by lowercased name for speed
     by_name: Dict[str, List[dict]] = {}
     for entry in db:
+        # Entries without 'name' are skipped defensively (custom DBs)
+        if not entry.get("name"):
+            continue
         by_name.setdefault(entry["name"].lower(), []).append(entry)
     total = 0
     for c in components:
@@ -451,8 +469,11 @@ def match_vulnerabilities(components: List[Component],
             if not c.version:
                 continue
             if _satisfies(c.version, entry.get("range", "*")):
+                vuln_id = entry.get("id")
+                if not vuln_id:
+                    continue
                 c.vulnerabilities.append(Vulnerability(
-                    id=entry["id"],
+                    id=vuln_id,
                     severity=entry.get("severity", "unknown"),
                     description=entry.get("description", ""),
                     affected_versions=entry.get("range", ""),

@@ -64,8 +64,13 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         doc = build_cyclonedx(components, tool_version=TOOL_VERSION)
         text = json.dumps(doc, indent=2)
         if args.output:
-            with open(args.output, "w", encoding="utf-8") as fh:
-                fh.write(text + "\n")
+            try:
+                with open(args.output, "w", encoding="utf-8") as fh:
+                    fh.write(text + "\n")
+            except OSError as exc:
+                print(f"error: cannot write output file '{args.output}': {exc}",
+                      file=sys.stderr)
+                return 2
             print(f"wrote CycloneDX SBOM to {args.output} "
                   f"({len(components)} components, {total_vulns} vulns)",
                   file=sys.stderr)
@@ -78,8 +83,13 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             _print_table(components, total_vulns)
         if args.output:
             doc = build_cyclonedx(components, tool_version=TOOL_VERSION)
-            with open(args.output, "w", encoding="utf-8") as fh:
-                fh.write(json.dumps(doc, indent=2) + "\n")
+            try:
+                with open(args.output, "w", encoding="utf-8") as fh:
+                    fh.write(json.dumps(doc, indent=2) + "\n")
+            except OSError as exc:
+                print(f"error: cannot write output file '{args.output}': {exc}",
+                      file=sys.stderr)
+                return 2
             print(f"(CycloneDX SBOM also written to {args.output})",
                   file=sys.stderr)
 
@@ -149,7 +159,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not getattr(args, "command", None):
         parser.print_help()
         return 0
-    return args.func(args)
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        print("\ninterrupted", file=sys.stderr)
+        return 130
+    except Exception as exc:  # pragma: no cover
+        print(f"error: unexpected error: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
