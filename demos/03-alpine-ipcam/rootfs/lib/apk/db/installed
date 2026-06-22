@@ -1,0 +1,19 @@
+P:musl
+V:1.2.4-r2
+A:armv7
+T:the musl c library (libc) implementation
+
+P:openssl
+V:3.0.5-r0
+A:armv7
+T:Toolkit for Transport Layer Security (TLS)
+
+P:zlib
+V:1.2.13-r0
+A:armv7
+T:A compression/decompression Library
+
+P:busybox
+V:1.36.1-r2
+A:armv7
+T:Size optimized toolbox of many common UNIX utilities

@@ -1,0 +1,9 @@
+Package: glibc
+Status: install ok installed
+Version: 2.31-13+deb11u5
+Architecture: armhf
+
+Package: openssl
+Status: install ok installed
+Version: 1.1.1n-0+deb11u3
+Architecture: armhf

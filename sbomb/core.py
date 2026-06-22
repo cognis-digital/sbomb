@@ -510,3 +510,95 @@ def build_cyclonedx(components: List[Component],
     if vulnerabilities:
         doc["vulnerabilities"] = vulnerabilities
     return doc
+
+
+# --------------------------------------------------------------------------
+# SARIF 2.1.0 output (for GitHub code-scanning / generic SAST ingestion)
+# --------------------------------------------------------------------------
+# Map our severity vocabulary onto the SARIF result.level enum and the
+# security-severity score GitHub uses to bucket alerts.
+_SARIF_LEVEL = {
+    "critical": "error",
+    "high": "error",
+    "medium": "warning",
+    "low": "note",
+    "unknown": "warning",
+}
+_SARIF_SECURITY_SEVERITY = {
+    "critical": "9.8",
+    "high": "8.1",
+    "medium": "5.5",
+    "low": "3.1",
+    "unknown": "5.0",
+}
+
+
+def build_sarif(components: List[Component],
+                tool_version: str = "1.0.0") -> dict:
+    """Build a SARIF 2.1.0 log from the vulnerability findings.
+
+    Each vulnerable (component, CVE) pair becomes one SARIF result; each
+    distinct CVE becomes a reusable rule under the tool driver. The component
+    evidence path is emitted as the result location so GitHub code-scanning
+    can anchor the alert. Components with no vulnerabilities produce no
+    results (a clean scan yields an empty `results` array, which is valid)."""
+    rules_index: Dict[str, int] = {}
+    rules: List[dict] = []
+    results: List[dict] = []
+    for c in components:
+        for v in c.vulnerabilities:
+            if v.id not in rules_index:
+                rules_index[v.id] = len(rules)
+                rules.append({
+                    "id": v.id,
+                    "name": v.id.replace("-", ""),
+                    "shortDescription": {"text": v.id},
+                    "fullDescription": {
+                        "text": v.description or v.id},
+                    "helpUri": (
+                        "https://nvd.nist.gov/vuln/detail/" + v.id
+                        if v.id.upper().startswith("CVE-")
+                        else ""),
+                    "properties": {
+                        "security-severity": _SARIF_SECURITY_SEVERITY.get(
+                            v.severity, "5.0"),
+                        "tags": ["security", "vulnerability"],
+                    },
+                })
+            loc = c.evidence or c.bom_ref()
+            results.append({
+                "ruleId": v.id,
+                "ruleIndex": rules_index[v.id],
+                "level": _SARIF_LEVEL.get(v.severity, "warning"),
+                "message": {
+                    "text": (
+                        f"{c.name} {c.version} is affected by {v.id} "
+                        f"({v.severity}): {v.description} "
+                        f"[affected: {v.affected_versions or 'see advisory'}]"
+                    ).strip()
+                },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": loc.replace(os.sep, "/")},
+                    }
+                }],
+                "partialFingerprints": {
+                    "sbomb/component-cve": f"{c.bom_ref()}::{v.id}",
+                },
+            })
+    return {
+        "$schema": ("https://raw.githubusercontent.com/oasis-tcs/sarif-spec/"
+                    "master/Schemata/sarif-schema-2.1.0.json"),
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "sbomb",
+                    "version": tool_version,
+                    "informationUri": "https://github.com/cognis-digital/sbomb",
+                    "rules": rules,
+                }
+            },
+            "results": results,
+        }],
+    }

@@ -1,4 +1,5 @@
 """Smoke tests for SBOMB. No network. Runs the engine on the bundled demo."""
+import json
 import os
 import sys
 
@@ -10,6 +11,7 @@ from sbomb import (  # noqa: E402
     TOOL_NAME,
     TOOL_VERSION,
     build_cyclonedx,
+    build_sarif,
     match_vulnerabilities,
     scan_rootfs,
 )
@@ -89,6 +91,49 @@ def test_cyclonedx_shape():
     assert len(doc["components"]) == len(comps)
     assert "vulnerabilities" in doc
     assert any(v["id"] == "CVE-2021-3711" for v in doc["vulnerabilities"])
+
+
+def test_sarif_shape():
+    comps = scan_rootfs(DEMO)
+    match_vulnerabilities(comps)
+    log = build_sarif(comps)
+    assert log["version"] == "2.1.0"
+    run = log["runs"][0]
+    assert run["tool"]["driver"]["name"] == "sbomb"
+    rule_ids = {r["id"] for r in run["tool"]["driver"]["rules"]}
+    assert "CVE-2021-3711" in rule_ids
+    # one result per (component, cve); openssl + zlib at minimum
+    assert len(run["results"]) >= 2
+    res0 = run["results"][0]
+    assert res0["level"] in ("error", "warning", "note")
+    assert res0["ruleId"] in rule_ids
+    # ruleIndex must point at the matching rule
+    assert run["tool"]["driver"]["rules"][res0["ruleIndex"]]["id"] == res0["ruleId"]
+    # each result carries a location and a stable fingerprint
+    assert res0["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+    assert "sbomb/component-cve" in res0["partialFingerprints"]
+    # critical maps to error + GitHub security-severity score
+    crit_rule = next(r for r in run["tool"]["driver"]["rules"]
+                     if r["id"] == "CVE-2021-3711")
+    assert crit_rule["properties"]["security-severity"] == "9.8"
+
+
+def test_sarif_clean_scan_has_no_results():
+    clean = os.path.join(os.path.dirname(__file__), "..", "demos",
+                         "06-clean-device", "rootfs")
+    comps = scan_rootfs(clean)
+    match_vulnerabilities(comps)
+    log = build_sarif(comps)
+    assert log["runs"][0]["results"] == []
+
+
+def test_cli_sarif_output(tmp_path):
+    out = tmp_path / "out.sarif"
+    rc = main(["scan", DEMO, "--format", "sarif", "-o", str(out)])
+    assert rc == 1  # vulns present -> gate still fails
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert doc["version"] == "2.1.0"
+    assert doc["runs"][0]["results"]
 
 
 def test_cli_exit_code_is_gate():

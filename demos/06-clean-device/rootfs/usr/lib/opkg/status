@@ -1,0 +1,19 @@
+Package: openssl
+Version: 3.0.12
+Status: install user installed
+Architecture: aarch64
+
+Package: zlib
+Version: 1.3.1
+Status: install user installed
+Architecture: aarch64
+
+Package: dropbear
+Version: 2022.83
+Status: install user installed
+Architecture: aarch64
+
+Package: libcurl
+Version: 8.5.0
+Status: install user installed
+Architecture: aarch64

@@ -75,7 +75,13 @@ sbomb scan .            # → prioritized findings in seconds
    sbomb scan ./rootfs --vuln-db my_cves.json --format json
    ```
 
-5. **Use in CI** — the non-zero exit on vulns fails the build; `--no-fail` makes it advisory-only:
+5. **Emit SARIF 2.1.0** for GitHub code-scanning / generic SAST ingestion:
+   ```bash
+   sbomb scan ./rootfs --format sarif -o results.sarif
+   # then upload results.sarif via github/codeql-action/upload-sarif
+   ```
+
+6. **Use in CI** — the non-zero exit on vulns fails the build; `--no-fail` makes it advisory-only:
    ```bash
    sbomb scan ./rootfs -o sbom.json || echo "known-vuln components present"
    ```
@@ -164,16 +170,44 @@ sbomb scan . --fail-on high        # CI gate (non-zero exit)
 
 ```text
 
-$ sbomb scan .
+$ sbomb scan demos/02-debian-router/rootfs
 
-  [HIGH    ] SBO-001  example finding             (./src/app.py)
+COMPONENT   VERSION             SOURCE  VULNS
+---------------------------------------------
+base-files  11.1+deb11u5        dpkg    -
+curl        7.74.0-1.3+deb11u3  dpkg    CVE-2022-32207(critical)
+dropbear    2022.83-1           dpkg    -
+openssl     1.1.1k-1+deb11u1    dpkg    CVE-2021-3711(critical)
+zlib1g      1:1.2.13.dfsg-1     dpkg    -
 
-  [MEDIUM  ] SBO-002  another signal              (./config.yaml)
+5 components, 2 vulnerability finding(s).   # exit code 1 (CI gate)
+
+```
 
 
 
-  2 findings · risk score 5 · 38ms
+## Demos
 
+Eight runnable, **verified** scenarios live under [`demos/`](demos/) — each is
+a realistic unpacked firmware rootfs in the tool's real input formats plus a
+`SCENARIO.md` (where the data came from, the run command, expected findings,
+how to act). Every demo is exercised by `tests/test_demos.py`.
+
+| Demo | Source | Outcome |
+|---|---|---|
+| [`01-basic`](demos/01-basic/) | opkg + apk + python | openssl + zlib (exit 1) |
+| [`02-debian-router`](demos/02-debian-router/) | dpkg | openssl + curl (exit 1) |
+| [`03-alpine-ipcam`](demos/03-alpine-ipcam/) | apk | openssl 3.0.5 "Spooky SSL" (exit 1) |
+| [`04-busybox-banner`](demos/04-busybox-banner/) | busybox binary banner | busybox 1.31.1 (exit 1) |
+| [`05-node-gateway`](demos/05-node-gateway/) | npm (nested) | vendored Log4Shell (exit 1) |
+| [`06-clean-device`](demos/06-clean-device/) | opkg (patched) | **0 findings (exit 0)** |
+| [`07-custom-vulndb`](demos/07-custom-vulndb/) | dpkg + opkg + `--vuln-db` | org-policy DB (exit 1) |
+| [`08-multidistro`](demos/08-multidistro/) | every detector | 2 criticals (exit 1) |
+
+```bash
+python -m sbomb scan demos/05-node-gateway/rootfs            # Log4Shell in node_modules
+python -m sbomb scan demos/06-clean-device/rootfs            # clean -> exit 0
+python -m sbomb scan demos/03-alpine-ipcam/rootfs --format sarif -o cam.sarif
 ```
 
 

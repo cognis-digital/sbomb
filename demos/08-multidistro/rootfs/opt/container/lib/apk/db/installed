@@ -1,0 +1,4 @@
+P:busybox
+V:1.33.0-r0
+A:x86_64
+T:Size optimized toolbox of many common UNIX utilities

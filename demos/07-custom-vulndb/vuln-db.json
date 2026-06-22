@@ -1,0 +1,11 @@
+[
+  {"name": "glibc", "range": "<2.35", "id": "CVE-2021-3999",
+   "severity": "high",
+   "description": "Off-by-one buffer overflow in glibc getcwd (org policy: block)."},
+  {"name": "dropbear", "range": "<2020.79", "id": "CVE-2020-36254",
+   "severity": "medium",
+   "description": "Dropbear scp username validation issue (org policy: block)."},
+  {"name": "openssl", "range": "<1.1.1l", "id": "CVE-2021-3711",
+   "severity": "critical",
+   "description": "OpenSSL SM2 decryption buffer overflow."}
+]

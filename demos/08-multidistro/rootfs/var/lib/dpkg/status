@@ -1,0 +1,10 @@
+Package: openssl
+Status: install ok installed
+Version: 1.1.1f-1ubuntu2
+Architecture: amd64
+
+Package: zlib1g
+Status: install ok installed
+Source: zlib
+Version: 1:1.2.11.dfsg-2
+Architecture: amd64

@@ -1,0 +1,4 @@
+NAME="Buildroot"
+ID=buildroot
+VERSION_ID="2020.02"
+PRETTY_NAME="Buildroot 2020.02"

@@ -10,6 +10,7 @@ from . import TOOL_NAME, TOOL_VERSION
 from .core import (
     Component,
     build_cyclonedx,
+    build_sarif,
     load_vuln_db,
     match_vulnerabilities,
     scan_rootfs,
@@ -60,13 +61,18 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     if not args.no_vuln:
         total_vulns = match_vulnerabilities(components, db)
 
-    if args.format == "json":
-        doc = build_cyclonedx(components, tool_version=TOOL_VERSION)
+    if args.format in ("json", "sarif"):
+        if args.format == "sarif":
+            doc = build_sarif(components, tool_version=TOOL_VERSION)
+            label = "SARIF report"
+        else:
+            doc = build_cyclonedx(components, tool_version=TOOL_VERSION)
+            label = "CycloneDX SBOM"
         text = json.dumps(doc, indent=2)
         if args.output:
             with open(args.output, "w", encoding="utf-8") as fh:
                 fh.write(text + "\n")
-            print(f"wrote CycloneDX SBOM to {args.output} "
+            print(f"wrote {label} to {args.output} "
                   f"({len(components)} components, {total_vulns} vulns)",
                   file=sys.stderr)
         else:
@@ -125,8 +131,9 @@ examples:
                     "components.")
     scan.add_argument("rootfs", help="Path to the unpacked rootfs directory.")
     scan.add_argument(
-        "--format", choices=["table", "json"], default="table",
-        help="Output format (default: table). 'json' emits CycloneDX 1.5.")
+        "--format", choices=["table", "json", "sarif"], default="table",
+        help="Output format (default: table). 'json' emits CycloneDX 1.5; "
+             "'sarif' emits SARIF 2.1.0 for GitHub code-scanning.")
     scan.add_argument(
         "-o", "--output", metavar="FILE",
         help="Write the CycloneDX SBOM JSON to FILE.")
