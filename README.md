@@ -126,6 +126,8 @@ Regulatory tailwind (EU CRA / FDA premarket SBOM mandates) — single binary tha
 
 - ✅ Detect Node Packages
 
+- ✅ CISA KEV + OSV data-feed enrichment (edge / air-gap, offline-capable)
+
 - ✅ Runs on Linux/macOS/Windows · Docker · devcontainer
 
 - ✅ Ports in Python, JavaScript, Go, and Rust (`ports/`)
@@ -203,12 +205,78 @@ how to act). Every demo is exercised by `tests/test_demos.py`.
 | [`06-clean-device`](demos/06-clean-device/) | opkg (patched) | **0 findings (exit 0)** |
 | [`07-custom-vulndb`](demos/07-custom-vulndb/) | dpkg + opkg + `--vuln-db` | org-policy DB (exit 1) |
 | [`08-multidistro`](demos/08-multidistro/) | every detector | 2 criticals (exit 1) |
+| [`09-feed-enrichment`](demos/09-feed-enrichment/) | npm + **CISA KEV + OSV** (offline) | Log4Shell tagged `[KEV]`, +OSV advisories |
 
 ```bash
 python -m sbomb scan demos/05-node-gateway/rootfs            # Log4Shell in node_modules
 python -m sbomb scan demos/06-clean-device/rootfs            # clean -> exit 0
 python -m sbomb scan demos/03-alpine-ipcam/rootfs --format sarif -o cam.sarif
+# offline data-feed enrichment (see "Data feeds" below)
+COGNIS_FEEDS_CACHE=tests/fixtures/feeds \
+  python -m sbomb scan demos/05-node-gateway/rootfs --osv --kev --offline
 ```
+
+
+
+<div align="right"><a href="#top">↑ back to top</a></div>
+
+
+
+<a name="data-feeds"></a>
+
+## Data feeds — CISA KEV + OSV (edge / air-gap ready)
+
+`sbomb` ships a standard-library ingestion layer (`sbomb/datafeeds.py` +
+`sbomb/feeds.py`, catalog in `sbomb/data_feeds_2026.json`) that pulls **real,
+keyless, public** vulnerability intelligence over HTTPS, caches it to disk, and
+**re-serves it offline** so the tool keeps working on disconnected / edge /
+air-gapped gear. This repo consumes two feeds from the catalog:
+
+| Feed id | Source | URL | Use |
+|---|---|---|---|
+| `cisa-kev` | CISA Known Exploited Vulnerabilities | `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json` | Tag matched CVEs that are **actively exploited** (`[KEV]`); escalate them to SARIF `error` / `security-severity 10.0` |
+| `osv` | OSV.dev vulnerability query | `https://api.osv.dev/v1/query` | Discover **additional** advisories per detected component (PyPI/npm/Debian/Alpine), beyond the bundled offline DB |
+
+### Enriched scan
+
+```bash
+sbomb scan ./rootfs --kev            # tag KEV-listed (actively-exploited) CVEs
+sbomb scan ./rootfs --osv            # add OSV.dev advisories per component
+sbomb scan ./rootfs --osv --kev      # both
+```
+
+KEV markers ride through to the outputs: a `sbomb:known_exploited` property on
+the CycloneDX vulnerability, and a `known-exploited` tag + `security-severity
+10.0` + `error` level on the SARIF result (so GitHub code-scanning surfaces it
+at the top).
+
+### `feeds` command
+
+```bash
+sbomb feeds list                       # this tool's relevant feeds + cache age
+sbomb feeds update cisa-kev            # fetch + cache the live KEV catalog
+sbomb feeds get cisa-kev --offline     # print cached content, no network
+sbomb feeds snapshot-export feeds.tar.gz   # tar the cache for sneakernet
+sbomb feeds snapshot-import feeds.tar.gz   # load it on the air-gapped box
+```
+
+The catalog is filtered to this tool's domain — `feeds list`/`get` only expose
+`cisa-kev` and `osv`; other catalog feeds are rejected.
+
+### Edge / air-gap workflow
+
+1. On a connected host: `sbomb feeds update cisa-kev` warms the cache
+   (`COGNIS_FEEDS_CACHE`, default `~/.cache/cognis-feeds`). OSV is a per-package
+   query feed, so it is cached on demand during `scan --osv`.
+2. `sbomb feeds snapshot-export feeds.tar.gz` tars the cache flat.
+3. Sneakernet the tarball into the disconnected enclave.
+4. `sbomb feeds snapshot-import feeds.tar.gz`, then run any scan with
+   `--offline` — feed data is served from the local cache and the network is
+   never touched.
+
+Tests are **fully offline**: `tests/test_feeds.py` points `COGNIS_FEEDS_CACHE`
+at committed trimmed fixtures (`tests/fixtures/feeds/`) and asserts the network
+is never reached.
 
 
 

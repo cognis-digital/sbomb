@@ -489,12 +489,22 @@ def build_cyclonedx(components: List[Component],
             ]
         cyclone_components.append(comp_obj)
         for v in c.vulnerabilities:
-            vulnerabilities.append({
+            vobj = {
                 "id": v.id,
                 "ratings": [{"severity": v.severity}],
                 "description": v.description,
                 "affects": [{"ref": c.bom_ref()}],
-            })
+            }
+            # data-feed enrichment: CISA KEV known-exploited marker
+            if getattr(v, "known_exploited", False):
+                vobj["properties"] = [
+                    {"name": "sbomb:known_exploited", "value": "true"},
+                    {"name": "sbomb:kev_date_added",
+                     "value": getattr(v, "kev_date_added", "")},
+                    {"name": "sbomb:kev_ransomware",
+                     "value": getattr(v, "kev_ransomware", "Unknown")},
+                ]
+            vulnerabilities.append(vobj)
     doc = {
         "bomFormat": "CycloneDX",
         "specVersion": "1.5",
@@ -547,8 +557,12 @@ def build_sarif(components: List[Component],
     results: List[dict] = []
     for c in components:
         for v in c.vulnerabilities:
+            kev = bool(getattr(v, "known_exploited", False))
             if v.id not in rules_index:
                 rules_index[v.id] = len(rules)
+                tags = ["security", "vulnerability"]
+                if kev:
+                    tags.append("known-exploited")
                 rules.append({
                     "id": v.id,
                     "name": v.id.replace("-", ""),
@@ -560,21 +574,29 @@ def build_sarif(components: List[Component],
                         if v.id.upper().startswith("CVE-")
                         else ""),
                     "properties": {
-                        "security-severity": _SARIF_SECURITY_SEVERITY.get(
-                            v.severity, "5.0"),
-                        "tags": ["security", "vulnerability"],
+                        # KEV-listed CVEs are actively exploited -> max score
+                        "security-severity": (
+                            "10.0" if kev
+                            else _SARIF_SECURITY_SEVERITY.get(v.severity, "5.0")),
+                        "tags": tags,
                     },
                 })
             loc = c.evidence or c.bom_ref()
+            kev_note = (
+                f" [CISA KEV: actively exploited, added "
+                f"{getattr(v, 'kev_date_added', '')}; ransomware="
+                f"{getattr(v, 'kev_ransomware', 'Unknown')}]" if kev else "")
             results.append({
                 "ruleId": v.id,
                 "ruleIndex": rules_index[v.id],
-                "level": _SARIF_LEVEL.get(v.severity, "warning"),
+                # KEV-listed findings escalate to error regardless of CVSS band
+                "level": "error" if kev else _SARIF_LEVEL.get(v.severity, "warning"),
                 "message": {
                     "text": (
                         f"{c.name} {c.version} is affected by {v.id} "
                         f"({v.severity}): {v.description} "
                         f"[affected: {v.affected_versions or 'see advisory'}]"
+                        f"{kev_note}"
                     ).strip()
                 },
                 "locations": [{

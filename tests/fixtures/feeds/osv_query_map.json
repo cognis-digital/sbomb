@@ -1,0 +1,84 @@
+{
+  "PyPI|requests|2.31.0": {
+    "vulns": [
+      {
+        "id": "GHSA-9hjg-9r4m-mvj7",
+        "aliases": [
+          "CVE-2024-47081"
+        ],
+        "summary": "Requests vulnerable to .netrc credentials leak via malicious URLs",
+        "database_specific": {
+          "severity": "MODERATE"
+        }
+      },
+      {
+        "id": "GHSA-9wx4-h78v-vm56",
+        "aliases": [
+          "CVE-2024-35195"
+        ],
+        "summary": "Requests `Session` object does not verify requests after making first request with verify=False",
+        "database_specific": {
+          "severity": "MODERATE"
+        }
+      },
+      {
+        "id": "GHSA-gc5v-m9x4-r6x2",
+        "aliases": [
+          "CVE-2026-25645"
+        ],
+        "summary": "Requests has Insecure Temp File Reuse in its extract_zipped_paths() utility function",
+        "database_specific": {
+          "severity": "MODERATE"
+        }
+      }
+    ]
+  },
+  "npm|cookie|0.5.0": {
+    "vulns": [
+      {
+        "id": "GHSA-pxg6-pf52-xh8x",
+        "aliases": [
+          "CVE-2024-47764"
+        ],
+        "summary": "cookie accepts cookie name, path, and domain with out of bounds characters",
+        "database_specific": {
+          "severity": "LOW"
+        }
+      }
+    ]
+  },
+  "npm|ws|8.13.0": {
+    "vulns": [
+      {
+        "id": "GHSA-3h5v-q93c-6h6q",
+        "aliases": [
+          "CVE-2024-37890"
+        ],
+        "summary": "ws affected by a DoS when handling a request with many HTTP headers",
+        "database_specific": {
+          "severity": "HIGH"
+        }
+      },
+      {
+        "id": "GHSA-58qx-3vcg-4xpx",
+        "aliases": [
+          "CVE-2026-45736"
+        ],
+        "summary": "ws: Uninitialized memory disclosure",
+        "database_specific": {
+          "severity": "MODERATE"
+        }
+      },
+      {
+        "id": "GHSA-96hv-2xvq-fx4p",
+        "aliases": [
+          "CVE-2026-48779"
+        ],
+        "summary": "ws: Memory exhaustion DoS from tiny fragments and data chunks",
+        "database_specific": {
+          "severity": "HIGH"
+        }
+      }
+    ]
+  }
+}

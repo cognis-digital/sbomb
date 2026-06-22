@@ -7,6 +7,8 @@ import sys
 from typing import List, Optional
 
 from . import TOOL_NAME, TOOL_VERSION
+from . import datafeeds as _df
+from . import feeds as _feeds
 from .core import (
     Component,
     build_cyclonedx,
@@ -29,7 +31,8 @@ def _print_table(components: List[Component], total_vulns: int) -> None:
     for c in components:
         if c.vulnerabilities:
             vulns = ", ".join(
-                f"{v.id}({v.severity})"
+                (f"{v.id}({v.severity})"
+                 + ("[KEV]" if getattr(v, "known_exploited", False) else ""))
                 for v in sorted(
                     c.vulnerabilities,
                     key=lambda v: _SEVERITY_ORDER.get(v.severity, 4)))
@@ -60,6 +63,25 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     total_vulns = 0
     if not args.no_vuln:
         total_vulns = match_vulnerabilities(components, db)
+
+        # --- data-feed enrichment (OSV discovery + CISA KEV prioritisation) ---
+        if getattr(args, "osv", False):
+            try:
+                added = _feeds.enrich_with_osv(components, offline=args.offline)
+                total_vulns += added
+                print(f"OSV: +{added} additional advisory finding(s)",
+                      file=sys.stderr)
+            except (FileNotFoundError, ConnectionError) as exc:
+                print(f"warning: OSV enrichment skipped: {exc}",
+                      file=sys.stderr)
+        if getattr(args, "kev", False):
+            try:
+                tagged = _feeds.enrich_with_kev(components, offline=args.offline)
+                print(f"CISA KEV: {tagged} finding(s) are actively exploited",
+                      file=sys.stderr)
+            except (FileNotFoundError, ConnectionError) as exc:
+                print(f"warning: KEV enrichment skipped: {exc}",
+                      file=sys.stderr)
 
     if args.format in ("json", "sarif"):
         if args.format == "sarif":
@@ -146,8 +168,107 @@ examples:
     scan.add_argument(
         "--no-fail", action="store_true",
         help="Always exit 0 even when vulnerabilities are found.")
+    scan.add_argument(
+        "--osv", action="store_true",
+        help="Enrich findings with OSV.dev advisories (per-component query).")
+    scan.add_argument(
+        "--kev", action="store_true",
+        help="Tag findings present in the CISA Known Exploited Vulns catalog.")
+    scan.add_argument(
+        "--offline", action="store_true",
+        help="Edge/air-gap mode: serve feed data from the local cache only "
+             "(never touches the network). Warm the cache with 'sbomb feeds "
+             "update' or import a snapshot first.")
     scan.set_defaults(func=_cmd_scan)
+
+    # ---- feeds: manage the bundled data-feed cache (osv, cisa-kev) ----------
+    feeds_p = sub.add_parser(
+        "feeds",
+        help="Manage the bundled threat/vuln data feeds (osv, cisa-kev).",
+        description="Edge/air-gap-deployable ingestion for this tool's "
+                    "relevant catalog feeds: OSV.dev and CISA KEV. Keyless "
+                    "HTTPS fetch -> disk cache -> offline re-serve -> snapshot "
+                    "export/import for sneakernet into an air-gapped enclave.")
+    fsub = feeds_p.add_subparsers(dest="feeds_cmd")
+    fsub.add_parser("list", help="List this tool's relevant feeds + cache age.")
+    fu = fsub.add_parser("update", help="Fetch + cache feed(s).")
+    fu.add_argument("ids", nargs="*",
+                    help="Feed ids (default: all relevant: cisa-kev osv).")
+    fg = fsub.add_parser("get", help="Print cached/fetched feed content.")
+    fg.add_argument("id", help="Feed id (cisa-kev or osv).")
+    fg.add_argument("--offline", action="store_true",
+                    help="Serve from cache only; never touch the network.")
+    fe = fsub.add_parser("snapshot-export",
+                         help="Tar the feed cache for air-gap transfer.")
+    fe.add_argument("path")
+    fi = fsub.add_parser("snapshot-import",
+                         help="Import a feed-cache snapshot into the cache.")
+    fi.add_argument("path")
+    feeds_p.set_defaults(func=_cmd_feeds)
     return parser
+
+
+def _cmd_feeds(args: argparse.Namespace) -> int:
+    cmd = getattr(args, "feeds_cmd", None)
+    if cmd == "list":
+        for f in _feeds.list_relevant_feeds():
+            age = _df.cached_age_hours(f["id"])
+            fresh = "uncached" if age is None else f"{age:.1f}h old"
+            print(f"  {f['id']:10} {f.get('domain',''):8} [{fresh:>10}]  "
+                  f"{f['name']}")
+            print(f"             {f['url']}")
+        return 0
+    if cmd == "update":
+        ids = args.ids or _feeds.RELEVANT_FEEDS
+        cat = _feeds.relevant_catalog()
+        rc = 0
+        for fid in ids:
+            if fid not in _feeds.RELEVANT_FEEDS:
+                print(f"  {fid}: not a relevant feed for this tool "
+                      f"(allowed: {', '.join(_feeds.RELEVANT_FEEDS)})",
+                      file=sys.stderr)
+                rc = 1
+                continue
+            if fid == "osv":
+                # OSV is a per-package POST query, not a bulk download; it is
+                # cached on demand during 'scan --osv'. Nothing to pull here.
+                print("  osv: query feed — cached per-component during "
+                      "'scan --osv' (no bulk pull)")
+                continue
+            try:
+                pth = _df.update(fid, catalog=cat)
+                print(f"  updated {fid} -> {pth} ({pth.stat().st_size} bytes)")
+            except (KeyError, ConnectionError) as exc:
+                print(f"  {fid}: {exc}", file=sys.stderr)
+                rc = 1
+        return rc
+    if cmd == "get":
+        if args.id not in _feeds.RELEVANT_FEEDS:
+            print(f"error: {args.id} is not a relevant feed "
+                  f"(allowed: {', '.join(_feeds.RELEVANT_FEEDS)})",
+                  file=sys.stderr)
+            return 2
+        try:
+            data = _df.get(args.id, offline=args.offline,
+                           catalog=_feeds.relevant_catalog())
+        except (KeyError, FileNotFoundError, ConnectionError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        text = (json.dumps(data, indent=2) if isinstance(data, (dict, list))
+                else str(data))
+        print(text[:4000])
+        return 0
+    if cmd == "snapshot-export":
+        print(f"exported {_df.snapshot_export(args.path)} feed(s) -> "
+              f"{args.path}")
+        return 0
+    if cmd == "snapshot-import":
+        print(f"imported {_df.snapshot_import(args.path)} feed(s) from "
+              f"{args.path}")
+        return 0
+    print("usage: sbomb feeds {list|update|get|snapshot-export|"
+          "snapshot-import}", file=sys.stderr)
+    return 1
 
 
 def main(argv: Optional[List[str]] = None) -> int:
