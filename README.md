@@ -46,7 +46,7 @@ sbomb scan .            # → prioritized findings in seconds
 
 
 
-- [Why sbomb?](#why) · [Features](#features) · [Quick start](#quick-start) · [Example](#example) · [Architecture](#architecture) · [AI stack](#ai-stack) · [How it compares](#how-it-compares) · [Integrations](#integrations) · [Install anywhere](#install-anywhere) · [Related](#related) · [Contributing](#contributing)
+- [Why sbomb?](#why) · [Features](#features) · [Quick start](#quick-start) · [Example](#example) · [Bundled 262k vuln DB](#bundled-db) · [Data feeds](#data-feeds) · [Architecture](#architecture) · [AI stack](#ai-stack) · [How it compares](#how-it-compares) · [Ports](#ports) · [Integrations](#integrations) · [Install anywhere](#install-anywhere) · [Related](#related) · [Contributing](#contributing)
 
 
 
@@ -84,6 +84,18 @@ sbomb scan .            # → prioritized findings in seconds
 6. **Use in CI** — the non-zero exit on vulns fails the build; `--no-fail` makes it advisory-only:
    ```bash
    sbomb scan ./rootfs -o sbom.json || echo "known-vuln components present"
+   ```
+
+7. **Match components against the bundled 262k-record OSV corpus** (fully offline — see [Bundled vulnerability database](#bundled-db)):
+   ```bash
+   sbomb match ./rootfs                  # advisories per detected component
+   sbomb match -p log4j-core             # a single package
+   sbomb match --cve CVE-2021-44228      # direct CVE/GHSA lookup
+   ```
+
+8. **Serve sbomb to an AI agent** over MCP (optional `mcp` extra):
+   ```bash
+   pip install "cognis-sbomb[mcp]" && sbomb mcp     # exposes sbomb_scan / sbomb_match / sbomb_cve
    ```
 
 <a name="why"></a>
@@ -128,9 +140,13 @@ Regulatory tailwind (EU CRA / FDA premarket SBOM mandates) — single binary tha
 
 - ✅ CISA KEV + OSV data-feed enrichment (edge / air-gap, offline-capable)
 
+- ✅ Bundled **262,351-record real OSV corpus** + offline `match` subcommand (`sbomb match`, no network)
+
+- ✅ MCP server (`sbomb mcp`) — drive scan/match/CVE-lookup from any AI agent
+
 - ✅ Runs on Linux/macOS/Windows · Docker · devcontainer
 
-- ✅ Ports in Python, JavaScript, Go, and Rust (`ports/`)
+- ✅ Real, CI-verified ports in Python, JavaScript, Go, and Rust (`ports/`) — each does the **full** rootfs→SBOM→CVE scan, not a stub
 
 
 
@@ -221,6 +237,63 @@ COGNIS_FEEDS_CACHE=tests/fixtures/feeds \
 <div align="right"><a href="#top">↑ back to top</a></div>
 
 
+
+<a name="bundled-db"></a>
+
+## Bundled vulnerability database — 262k real OSV records, fully offline
+
+`sbomb` ships **`sbomb/cognis_vulndb.jsonl.gz` — 262,351 real vulnerability
+records** consolidated from [OSV.dev](https://osv.dev) across PyPI, npm, Go,
+Maven, RubyGems, crates.io and NuGet. Each record carries its OSV/GHSA id,
+CVE aliases, ecosystem, summary, CVSS severity vector, affected packages and
+dates. The loader (`sbomb/vulndb_local.py`, `VulnDB`) is **pure standard
+library** and reads the gzip directly — no network, no API key, no extra
+deps — so it works the moment the repo is cloned and on fully air-gapped gear.
+
+```bash
+sbomb match ./rootfs                 # match every detected component
+sbomb match -p log4j-core            # match a single package
+sbomb match --cve CVE-2021-44228     # look a CVE/GHSA up directly
+sbomb match ./rootfs --format json   # machine-readable
+sbomb match ./rootfs --ecosystem-strict   # cut cross-ecosystem name collisions
+```
+
+Worked example — Log4Shell really resolves out of the bundled corpus:
+
+```text
+$ sbomb match -p log4j-core
+Matched 1 component(s) against 262,351 bundled OSV records.
+
+log4j-core  [any] — 11 advisory(ies)
+  CVE-2021-44228     Maven      Remote code injection in Log4j
+  CVE-2021-45046     Maven      Incomplete fix for Apache Log4j vulnerability
+  CVE-2021-45105     Maven      Improper Input Validation / Uncontrolled recursion
+  CVE-2021-44832     Maven      Improper Input Validation and Injection in Apache Log4j2
+  CVE-2017-5645      Maven      Deserialization of Untrusted Data in Log4j
+  ...
+
+1 component(s) carry 11 advisory(ies).   # exit code 1 (CI gate)
+```
+
+```python
+from sbomb.vulndb_local import VulnDB
+db = VulnDB()
+db.count()                       # -> 262351
+db.by_cve("CVE-2021-44228")      # -> the Log4Shell Maven record
+db.by_package("log4j-core")      # -> short name resolves the group:artifact id
+```
+
+Two complementary matchers ship in the box:
+
+| Matcher | Source | Version-gated? | Use |
+|---|---|---|---|
+| `sbomb scan` (curated DB) | `core.DEFAULT_VULN_DB` + `--vuln-db` | ✅ yes (range logic) | precise "this exact version is vulnerable" CI gate |
+| `sbomb match` (bundled corpus) | `cognis_vulndb.jsonl.gz` (262k) | name-level (advisories that name the package) | breadth — surface every advisory touching a component, offline |
+
+Refresh / extend the corpus at the edge from NVD / OSV / GHSA with
+`python -m sbomb.datafeeds bulk` (see the air-gap workflow below).
+
+<div align="right"><a href="#top">↑ back to top</a></div>
 
 <a name="data-feeds"></a>
 
@@ -325,6 +398,29 @@ flowchart LR
 <div align="right"><a href="#top">↑ back to top</a></div>
 
 
+
+<a name="ports"></a>
+
+## Polyglot ports — the full scan, in four languages
+
+The same firmware-rootfs scan surface is ported to **JavaScript/Node, Go, and
+Rust** alongside the Python reference. These are not stubs: each port walks a
+rootfs, runs every detector (dpkg/opkg/apk/os-release/busybox/python/npm),
+matches against an embedded real-CVE DB with identical version-range logic, and
+emits the same CycloneDX 1.5 shape — exiting `1` when vulns are found.
+
+```bash
+node ports/javascript/index.js ./rootfs        # Node
+cd ports/go   && go run .   ../../rootfs        # Go (single static binary)
+cd ports/rust && cargo run -- ../../rootfs      # Rust
+```
+
+Every port has its own test suite against the real `demos/` fixtures, and all
+three are built + tested on every push by
+[`.github/workflows/ports.yml`](.github/workflows/ports.yml). See
+[`ports/README.md`](ports/README.md).
+
+<div align="right"><a href="#top">↑ back to top</a></div>
 
 <a name="how-it-compares"></a>
 
@@ -475,4 +571,9 @@ Source-available under the **Cognis Open Collaboration License (COCL) v1.0** —
 
 ## Bundled vulnerability database
 
-Ships `sbomb/cognis_vulndb.jsonl.gz` — **262,351 real vulnerabilities** (OSV: PyPI/npm/Go/Maven/RubyGems/crates.io/NuGet) with detailed metadata (CVE/GHSA aliases, ecosystem, severity/CVSS, affected packages, dates). Pure-stdlib offline loader `vulndb_local.VulnDB` (`count`/`by_cve`/`by_package`/`search`), air-gap ready. Refresh/extend via `datafeeds.py bulk`.
+See **[Bundled vulnerability database — 262k real OSV records](#bundled-db)**
+above for the full write-up: `sbomb/cognis_vulndb.jsonl.gz` ships **262,351
+real OSV vulnerabilities** (PyPI/npm/Go/Maven/RubyGems/crates.io/NuGet) with
+CVE/GHSA aliases, ecosystem, CVSS severity, affected packages and dates,
+queried offline via the `sbomb match` subcommand or the pure-stdlib
+`vulndb_local.VulnDB` loader (`count`/`by_cve`/`by_package`/`search`).

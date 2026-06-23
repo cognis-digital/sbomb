@@ -1,0 +1,72 @@
+name: ports
+on:
+  push:
+    paths:
+      - "ports/**"
+      - "demos/**"
+      - ".github/workflows/ports.yml"
+  pull_request:
+    paths:
+      - "ports/**"
+      - "demos/**"
+      - ".github/workflows/ports.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Test Node port
+        run: node --test ports/javascript/test.mjs
+      - name: Exit-code gate (vulnerable rootfs -> exit 1)
+        run: |
+          if node ports/javascript/index.js demos/01-basic/rootfs > /dev/null; then
+            echo "expected non-zero exit on a vulnerable rootfs"; exit 1
+          fi
+      - name: Exit-code gate (clean rootfs -> exit 0)
+        run: node ports/javascript/index.js demos/06-clean-device/rootfs > /dev/null
+
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: Vet
+        working-directory: ports/go
+        run: go vet ./...
+      - name: Test Go port
+        working-directory: ports/go
+        run: go test ./...
+      - name: Build + exit-code gate
+        working-directory: ports/go
+        run: |
+          go build -o sbomb-go .
+          if ./sbomb-go ../../demos/01-basic/rootfs > /dev/null; then
+            echo "expected non-zero exit on a vulnerable rootfs"; exit 1
+          fi
+          ./sbomb-go ../../demos/06-clean-device/rootfs > /dev/null
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test Rust port
+        working-directory: ports/rust
+        run: cargo test
+      - name: Build + exit-code gate
+        working-directory: ports/rust
+        run: |
+          cargo build --release
+          if ./target/release/sbomb ../../demos/01-basic/rootfs > /dev/null; then
+            echo "expected non-zero exit on a vulnerable rootfs"; exit 1
+          fi
+          ./target/release/sbomb ../../demos/06-clean-device/rootfs > /dev/null

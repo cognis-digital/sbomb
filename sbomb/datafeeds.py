@@ -146,6 +146,51 @@ def get(feed_id: str, *, offline: bool = False, max_age_hours: float = 24.0,
 
 
 # --------------------------------------------------------------------------- #
+# bulk harvest — pull AS MUCH as a source offers (paginated), cache to disk.
+# A vuln scanner can enrich against 100k+ CVEs this way without bundling GBs
+# into git: the full set lives in the edge cache, the repo carries a fixture.
+# --------------------------------------------------------------------------- #
+def harvest_cves(feed_id: str = "nvd-cve", *, max_records: int = 200_000,
+                 page_size: int = 2000, timeout: float = 60.0) -> Path:
+    """Paginate a CVE source to disk (NVD 2.0 or GitHub GHSA). Returns the cache path.
+
+    NVD: startIndex/resultsPerPage over ~250k+ CVEs. GHSA: per_page + Link cursor.
+    Writes a single JSON array of records to <cache>/<feed_id>.bulk.json.
+    """
+    feeds = _catalog_feeds()
+    base = feeds.get(feed_id, {}).get("url", "")
+    records: list = []
+    if "services.nvd.nist.gov" in base:
+        start = 0
+        while len(records) < max_records:
+            url = f"{base}?resultsPerPage={page_size}&startIndex={start}"
+            page = json.loads(fetch(url, timeout=timeout))
+            vulns = page.get("vulnerabilities", [])
+            if not vulns:
+                break
+            records.extend(vulns)
+            total = page.get("totalResults", 0)
+            start += page_size
+            if start >= min(total, max_records):
+                break
+            time.sleep(6)  # NVD keyless courtesy rate limit
+    elif "api.github.com/advisories" in base:
+        url = base if "per_page" in base else base + ("&" if "?" in base else "?") + "per_page=100"
+        while url and len(records) < max_records:
+            req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept": "application/vnd.github+json"})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                records.extend(json.loads(resp.read()))
+                link = resp.headers.get("Link", "")
+            nxt = [p.split(";")[0].strip(" <>") for p in link.split(",") if 'rel="next"' in p]
+            url = nxt[0] if nxt else None
+    else:
+        raise ValueError(f"harvest_cves supports nvd-cve / github-advisories, not {feed_id!r}")
+    out = cache_dir() / f"{feed_id}.bulk.json"
+    out.write_text(json.dumps(records), encoding="utf-8")
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # air-gap snapshot (sneakernet the cache into a disconnected enclave)
 # --------------------------------------------------------------------------- #
 def snapshot_export(path: str) -> int:
@@ -182,6 +227,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     pg = sub.add_parser("get"); pg.add_argument("feed"); pg.add_argument("--offline", action="store_true")
     pe = sub.add_parser("snapshot-export"); pe.add_argument("path")
     pi = sub.add_parser("snapshot-import"); pi.add_argument("path")
+    pb = sub.add_parser("bulk"); pb.add_argument("feed", nargs="?", default="nvd-cve")
+    pb.add_argument("--max", type=int, default=200000)
     args = p.parse_args(argv)
 
     if args.cmd == "list":
@@ -204,6 +251,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         except (KeyError, FileNotFoundError, ConnectionError) as e:
             print(f"error: {e}", file=sys.stderr); return 1
         print(json.dumps(data, indent=2)[:4000] if isinstance(data, (dict, list)) else data[:4000])
+        return 0
+    if args.cmd == "bulk":
+        p = harvest_cves(args.feed, max_records=args.max)
+        n = len(json.loads(p.read_text(encoding="utf-8")))
+        print(f"  harvested {n} records -> {p} ({p.stat().st_size} bytes)")
         return 0
     if args.cmd == "snapshot-export":
         print(f"exported {snapshot_export(args.path)} feed(s) -> {args.path}"); return 0

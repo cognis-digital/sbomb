@@ -9,6 +9,7 @@ from typing import List, Optional
 from . import TOOL_NAME, TOOL_VERSION
 from . import datafeeds as _df
 from . import feeds as _feeds
+from . import vulndb_local as _vdb
 from .core import (
     Component,
     build_cyclonedx,
@@ -117,6 +118,93 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _components_from_args(args: argparse.Namespace) -> List[Component]:
+    """Build the component list for `match` from either a scanned rootfs or a
+    list of name[@version] specs / a components JSON file. Fully offline."""
+    if getattr(args, "rootfs", None):
+        return scan_rootfs(args.rootfs)
+    comps: List[Component] = []
+    if getattr(args, "from_json", None):
+        data = json.loads(_read_text(args.from_json))
+        items = data.get("components", data) if isinstance(data, dict) else data
+        for it in items:
+            if isinstance(it, str):
+                name, _, ver = it.partition("@")
+                comps.append(Component(name=name, version=ver, source="manual"))
+            elif isinstance(it, dict):
+                comps.append(Component(
+                    name=it.get("name", ""),
+                    version=it.get("version", ""),
+                    purl=it.get("purl", ""),
+                    source=it.get("source", "manual")))
+        return comps
+    for spec in getattr(args, "package", []) or []:
+        name, _, ver = spec.partition("@")
+        comps.append(Component(name=name, version=ver, source="manual"))
+    return comps
+
+
+def _read_text(path: str) -> str:
+    with open(path, "r", encoding="utf-8") as fh:
+        return fh.read()
+
+
+def _cmd_match(args: argparse.Namespace) -> int:
+    """Enrich components against the bundled 262k-record offline OSV corpus."""
+    db = _vdb.VulnDB(args.db) if getattr(args, "db", None) else _vdb.default_db()
+
+    # direct CVE/GHSA lookup mode (no component needed)
+    if getattr(args, "cve", None):
+        recs = db.by_cve(args.cve)
+        if args.format == "json":
+            print(json.dumps({"cve": args.cve, "records": recs}, indent=2))
+        else:
+            print(f"{args.cve}: {len(recs)} record(s) in bundled corpus")
+            for r in recs:
+                print(f"  {r.get('id')}  [{r.get('ecosystem')}]  "
+                      f"{', '.join(r.get('packages', [])[:3])}")
+        return 0 if recs else 1
+
+    try:
+        components = _components_from_args(args)
+    except (NotADirectoryError, FileNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if not components:
+        print("error: nothing to match — pass a rootfs, --package NAME[@VER], "
+              "--from-json FILE, or --cve CVE-ID", file=sys.stderr)
+        return 2
+
+    results = _vdb.match_components(
+        components, db=db, ecosystem_strict=args.ecosystem_strict)
+    total = sum(len(r["matches"]) for r in results)
+
+    if args.format == "json":
+        print(json.dumps({
+            "tool": TOOL_NAME, "version": TOOL_VERSION,
+            "db_records": db.count(),
+            "components_scanned": len(components),
+            "components_with_advisories": len(results),
+            "advisory_count": total,
+            "results": results,
+        }, indent=2))
+    else:
+        print(f"Matched {len(components)} component(s) against "
+              f"{db.count():,} bundled OSV records.")
+        for r in results:
+            print(f"\n{r['component']} {r['version']} "
+                  f"[{r['ecosystem'] or 'any'}] — {len(r['matches'])} advisory(ies)")
+            for m in r["matches"][:args.limit]:
+                cve = next((a for a in m["aliases"]
+                            if a.upper().startswith("CVE-")), m["id"])
+                print(f"  {cve:18} {m['ecosystem']:10} {m['summary'][:70]}")
+        print(f"\n{len(results)} component(s) carry {total} advisory(ies).")
+
+    if total > 0 and not args.no_fail:
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=TOOL_NAME,
@@ -181,6 +269,43 @@ examples:
              "update' or import a snapshot first.")
     scan.set_defaults(func=_cmd_scan)
 
+    # ---- match: enrich against the bundled 262k-record offline OSV corpus ----
+    match = sub.add_parser(
+        "match",
+        help="Match components against the bundled 262k-record offline OSV DB.",
+        description="Resolve firmware components (from a scanned rootfs, "
+                    "--package specs, or a --from-json component list) against "
+                    "the bundled ~262k real OSV vulnerability records "
+                    "(sbomb/cognis_vulndb.jsonl.gz). 100%% offline / air-gap; "
+                    "no network. Reports advisories that name each package "
+                    "across PyPI/npm/Go/Maven/RubyGems/crates.io/NuGet.")
+    msrc = match.add_argument_group("input (choose one)")
+    msrc.add_argument("rootfs", nargs="?",
+                      help="Unpacked rootfs to scan, then match.")
+    msrc.add_argument("--package", "-p", action="append", metavar="NAME[@VER]",
+                      help="Match a single package (repeatable).")
+    msrc.add_argument("--from-json", metavar="FILE",
+                      help="Match a components JSON file "
+                           "(list of {name,version} or name@ver strings, or a "
+                           "CycloneDX-like {'components':[...]}).")
+    msrc.add_argument("--cve", metavar="CVE-ID",
+                      help="Look a CVE/GHSA id up directly in the corpus.")
+    match.add_argument("--db", metavar="FILE",
+                       help="Use an alternate .jsonl.gz corpus "
+                            "(default: the bundled one).")
+    match.add_argument(
+        "--ecosystem-strict", action="store_true",
+        help="Only keep advisories whose ecosystem matches the component's "
+             "inferred ecosystem (cuts cross-ecosystem name collisions).")
+    match.add_argument(
+        "--format", choices=["table", "json"], default="table",
+        help="Output format (default: table).")
+    match.add_argument("--limit", type=int, default=10, metavar="N",
+                       help="Max advisories printed per component (table mode).")
+    match.add_argument("--no-fail", action="store_true",
+                       help="Exit 0 even when advisories are found.")
+    match.set_defaults(func=_cmd_match)
+
     # ---- feeds: manage the bundled data-feed cache (osv, cisa-kev) ----------
     feeds_p = sub.add_parser(
         "feeds",
@@ -205,7 +330,21 @@ examples:
                          help="Import a feed-cache snapshot into the cache.")
     fi.add_argument("path")
     feeds_p.set_defaults(func=_cmd_feeds)
+
+    # ---- mcp: serve the scanner/matcher as MCP tools for AI agents ----------
+    mcp_p = sub.add_parser(
+        "mcp",
+        help="Run the MCP server (exposes scan/match/cve as agent tools).",
+        description="Start an MCP stdio server exposing sbomb_scan, "
+                    "sbomb_match and sbomb_cve. Requires the optional 'mcp' "
+                    "extra: pip install 'cognis-sbomb[mcp]'.")
+    mcp_p.set_defaults(func=_cmd_mcp)
     return parser
+
+
+def _cmd_mcp(args: argparse.Namespace) -> int:
+    from . import mcp_server
+    return mcp_server.serve()
 
 
 def _cmd_feeds(args: argparse.Namespace) -> int:

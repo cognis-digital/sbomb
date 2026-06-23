@@ -3,6 +3,11 @@ name = "sbomb"
 version = "0.2.0"
 edition = "2021"
 license = "LicenseRef-COCL-1.0"
+description = "Rust port of sbomb (Cognis Neural Suite): firmware rootfs SBOM + CVE scan"
+
+[lib]
+name = "sbomb"
+path = "src/lib.rs"
 
 [[bin]]
 name = "sbomb"

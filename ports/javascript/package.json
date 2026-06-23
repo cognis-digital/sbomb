@@ -1,9 +1,12 @@
 {
   "name": "@cognis/sbomb",
   "version": "0.2.0",
-  "description": "JavaScript port of sbomb (Cognis Neural Suite)",
+  "description": "JavaScript / Node port of sbomb (Cognis Neural Suite): firmware rootfs SBOM + CVE scan",
   "bin": {
     "sbomb": "index.js"
+  },
+  "scripts": {
+    "test": "node --test test.mjs"
   },
   "license": "LicenseRef-COCL-1.0",
   "type": "module"
