@@ -1,0 +1,3 @@
+$ sbomb-emit --version
+
+sbomb 0.1.0

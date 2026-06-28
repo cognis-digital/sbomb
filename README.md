@@ -42,6 +42,72 @@ sbomb scan .            # → prioritized findings in seconds
 
 
 
+
+<!-- cognis:example:start -->
+## 🔎 Example output
+
+Real, reproducible output from the tool — runs offline:
+
+```console
+$ sbomb-emit --version
+sbomb 0.1.0
+```
+
+```console
+$ sbomb-emit --help
+usage: sbomb [-h] [--version] {scan,match,feeds,mcp} ...
+
+Generate a CycloneDX SBOM from an unpacked firmware rootfs and flag known-vuln components.
+
+positional arguments:
+  {scan,match,feeds,mcp}
+    scan                Scan an unpacked rootfs and emit an SBOM.
+    match               Match components against the bundled 262k-record
+                        offline OSV DB.
+    feeds               Manage the bundled threat/vuln data feeds (osv, cisa-
+                        kev).
+    mcp                 Run the MCP server (exposes scan/match/cve as agent
+                        tools).
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+
+examples:
+  # Human-readable table of components + vulns
+  sbomb scan ./rootfs
+
+  # CycloneDX JSON SBOM to stdout (pipe into CI / other tools)
+  sbomb scan ./rootfs --format json > sbom.json
+
+  # Write SBOM to a file and use as a CI gate (exit 1 if vulns found)
+  sbomb scan ./rootfs -o sbom.json && echo CLEAN
+
+  # Use your own offline vuln DB
+  sbomb scan ./rootfs --vuln-db my_cves.json --format json
+```
+
+> Blocks above are real `sbomb` output — reproduce them from a clone.
+
+**Sample result format** _(illustrative values — run on your own data for real findings):_
+
+```
+{
+"findings": [
+    {
+        "id": "123456",
+        "title": "Suspicious Network Traffic",
+        "description": "Potential malicious activity detected on port 443",
+        "created_by": "sbomb",
+        "created_at": "2023-02-15T14:30:00Z",
+        "updated_at": "2023-02-15T14:30:00Z"
+    }
+]
+}
+```
+
+<!-- cognis:example:end -->
+
 ## Contents
 
 
