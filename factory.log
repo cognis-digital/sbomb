@@ -1,0 +1,16 @@
+[2026-07-13 05:34:53] === enhance · sbomb · words=120000 loc>=10000 langs=9 push=True ===
+[2026-07-13 05:34:58] phase DOCS — longform 120000-word corpus -> docs/corpus/
+[2026-07-13 14:44:52] phase POLYGLOT — expanding to >= 10000 LOC across 9 languages
+[2026-07-13 14:45:28]   facets: ['filesystem_traversal', 'binary_identification', 'dependency_resolution', 'cve_matching', 'kernel_eol_detection', 'sbom_assembly']
+[2026-07-13 14:47:29]   +polyglot/python/filesystem_traversal.py  (loc now ~5280)
+[2026-07-13 14:49:48]   +polyglot/go/filesystem_traversal.go  (loc now ~5810)
+[2026-07-13 14:51:48]   +polyglot/rust/filesystem_traversal.rs  (loc now ~6203)
+[2026-07-13 14:54:11]   +polyglot/typescript/filesystem_traversal.ts  (loc now ~6697)
+[2026-07-13 14:56:11]   +polyglot/c/filesystem_traversal.c  (loc now ~7131)
+[2026-07-13 14:58:35]   +polyglot/cpp/filesystem_traversal.cpp  (loc now ~7596)
+[2026-07-13 15:00:33]   +polyglot/java/filesystem_traversal.java  (loc now ~8059)
+[2026-07-13 15:02:36]   +polyglot/ruby/filesystem_traversal.rb  (loc now ~8482)
+[2026-07-13 15:04:54]   +polyglot/csharp/filesystem_traversal.cs  (loc now ~8969)
+[2026-07-13 15:06:43]   +polyglot/python/binary_identification.py  (loc now ~9392)
+[2026-07-13 15:08:43]   +polyglot/go/binary_identification.go  (loc now ~9847)
+[2026-07-13 15:10:41]   +polyglot/rust/binary_identification.rs  (loc now ~10311)
